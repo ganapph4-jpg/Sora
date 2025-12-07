@@ -6,71 +6,102 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve the UI
+// Serve index.html
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Safely read nested JSON values
+// Helper
 const safe = (obj, path) =>
     path.split(".").reduce((o, k) => (o && o[k] !== undefined ? o[k] : null), obj);
 
-// Download route
+// DOMAIN LIST TO TRY
+const SORA_DOMAINS = [
+    "https://sora.com/p/",
+    "https://openai.com/sora/p/"
+];
+
+async function fetchSoraPage(id) {
+    for (const base of SORA_DOMAINS) {
+        const url = base + id;
+        try {
+            console.log("Trying:", url);
+            const response = await axios.get(url, {
+                headers: {
+                    "User-Agent": "Mozilla/5.0",
+                    "Accept": "*/*",
+                    "Referer": "https://openai.com/"
+                },
+                validateStatus: () => true
+            });
+
+            if (response.status !== 404 && response.data) {
+                console.log("SUCCESS:", url);
+                return response.data;
+            }
+
+        } catch (e) {
+            console.log("FAILED:", url);
+            continue;
+        }
+    }
+    return null;
+}
+
+// DOWNLOAD ROUTE
 app.get("/video", async (req, res) => {
     try {
         let id = req.query.id;
 
         if (!id) return res.status(400).send("Missing ID");
 
-        // Extract ID from full URL
+        // extract ID from full link
         if (id.includes("http")) {
-            const m = id.match(/s_[A-Za-z0-9]+/);
-            if (m) id = m[0];
+            const match = id.match(/s_[A-Za-z0-9]+/);
+            if (match) id = match[0];
         }
 
         if (!id.startsWith("s_")) {
-            return res.status(400).send("Invalid Sora ID.");
+            return res.status(400).send("Invalid Sora ID");
         }
 
-        const soraURL = `https://sora.chatgpt.com/p/${id}`;
-        console.log("Fetching:", soraURL);
+        // FETCH PAGE (TRY MULTIPLE DOMAINS)
+        const html = await fetchSoraPage(id);
 
-        const page = await axios.get(soraURL, {
-            headers: {
-                "User-Agent": "Mozilla/5.0",
-                "Accept": "*/*",
-                "Referer": "https://sora.chatgpt.com/"
-            }
-        });
+        if (!html) {
+            return res.status(404).send("This Sora link is not publicly accessible.");
+        }
 
-        const html = page.data;
         const $ = cheerio.load(html);
 
         let cleanURL = null;
         let backup = null;
 
-        // method 1: <video src="">
+        // <video> tag
         const tag = $("video").attr("src");
         if (tag) backup = tag;
 
-        // method 2: JSON script
+        // JSON script
         const script = $('script[type="application/json"]').html();
         if (script) {
             const json = JSON.parse(script);
+
             cleanURL = safe(json, "props.pageProps.video.url_no_wm");
             if (!backup) backup = safe(json, "props.pageProps.video.url");
         }
 
-        // method 3: replace wm with clean
+        // pattern fallback
         if (!cleanURL && backup?.includes("/wm/")) {
             cleanURL = backup.replace("/wm/", "/clean/");
         }
 
         const finalURL = cleanURL || backup;
 
-        if (!finalURL) return res.status(404).send("No video found.");
+        if (!finalURL) {
+            return res.status(404).send("Unable to extract MP4 URL.");
+        }
 
-        console.log("Downloading:", finalURL);
+        console.log("DOWNLOADING:", finalURL);
 
         const stream = await axios({
             url: finalURL,
@@ -85,10 +116,10 @@ app.get("/video", async (req, res) => {
 
     } catch (err) {
         console.error(err);
-        res.status(500).send("Error downloading video.");
+        res.status(500).send("Download error.");
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Running at http://localhost:${PORT}`);
+    console.log(`🚀 Downloader online at http://localhost:${PORT}`);
 });
