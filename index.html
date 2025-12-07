@@ -7,10 +7,10 @@
             background: #f4f4f4;
             padding: 40px;
             text-align: center;
-            font-family: Arial, Helvetica, sans-serif;
+            font-family: Arial, sans-serif;
         }
         .box {
-            background: #fff;
+            background: white;
             width: 380px;
             padding: 25px;
             margin: auto;
@@ -20,15 +20,15 @@
         input {
             width: 90%;
             padding: 12px;
-            border: 1px solid #bbb;
-            border-radius: 6px;
             margin-bottom: 12px;
+            border-radius: 6px;
+            border: 1px solid #aaa;
         }
         button {
             background: #007bff;
             border: none;
             padding: 12px 25px;
-            color: #fff;
+            color: white;
             border-radius: 6px;
             cursor: pointer;
         }
@@ -39,7 +39,7 @@
 
 <div class="box">
     <h2>Sora Downloader</h2>
-    <p>Paste your Sora link or video ID</p>
+    <p>Paste Sora link or video ID</p>
 
     <form action="/video" method="GET">
         <input type="text" name="id" placeholder="Paste Sora link here…" required>
