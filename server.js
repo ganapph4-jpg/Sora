@@ -6,23 +6,23 @@ const path = require("path");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Serve index.html
+// Serve the UI
 app.get("/", (req, res) => {
     res.sendFile(path.join(__dirname, "index.html"));
 });
 
-// Safe JSON reader
+// Safely read nested JSON values
 const safe = (obj, path) =>
     path.split(".").reduce((o, k) => (o && o[k] !== undefined ? o[k] : null), obj);
 
-// Downloader Route
+// Download route
 app.get("/video", async (req, res) => {
     try {
         let id = req.query.id;
 
-        if (!id) return res.status(400).send("No Sora ID provided.");
+        if (!id) return res.status(400).send("Missing ID");
 
-        // Extract ID from full link
+        // Extract ID from full URL
         if (id.includes("http")) {
             const m = id.match(/s_[A-Za-z0-9]+/);
             if (m) id = m[0];
@@ -35,11 +35,9 @@ app.get("/video", async (req, res) => {
         const soraURL = `https://sora.chatgpt.com/p/${id}`;
         console.log("Fetching:", soraURL);
 
-        // Cloudflare bypass headers
         const page = await axios.get(soraURL, {
             headers: {
-                "User-Agent":
-                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36",
+                "User-Agent": "Mozilla/5.0",
                 "Accept": "*/*",
                 "Referer": "https://sora.chatgpt.com/"
             }
@@ -51,29 +49,26 @@ app.get("/video", async (req, res) => {
         let cleanURL = null;
         let backup = null;
 
-        // Method 1 – video tag
-        const tagURL = $("video").attr("src");
-        if (tagURL) backup = tagURL;
+        // method 1: <video src="">
+        const tag = $("video").attr("src");
+        if (tag) backup = tag;
 
-        // Method 2 – JSON script
+        // method 2: JSON script
         const script = $('script[type="application/json"]').html();
         if (script) {
             const json = JSON.parse(script);
-
             cleanURL = safe(json, "props.pageProps.video.url_no_wm");
-            if (!backup) {
-                backup = safe(json, "props.pageProps.video.url");
-            }
+            if (!backup) backup = safe(json, "props.pageProps.video.url");
         }
 
-        // Auto-clean URL pattern
-        if (!cleanURL && backup && backup.includes("/wm/")) {
+        // method 3: replace wm with clean
+        if (!cleanURL && backup?.includes("/wm/")) {
             cleanURL = backup.replace("/wm/", "/clean/");
         }
 
         const finalURL = cleanURL || backup;
 
-        if (!finalURL) return res.status(404).send("Cannot find clean MP4.");
+        if (!finalURL) return res.status(404).send("No video found.");
 
         console.log("Downloading:", finalURL);
 
@@ -84,19 +79,16 @@ app.get("/video", async (req, res) => {
         });
 
         res.setHeader("Content-Type", "video/mp4");
-        res.setHeader(
-            "Content-Disposition",
-            `attachment; filename="${id}.mp4"`
-        );
+        res.setHeader("Content-Disposition", `attachment; filename="${id}.mp4"`);
 
         stream.data.pipe(res);
 
     } catch (err) {
         console.error(err);
-        res.status(500).send("Failed to download video.");
+        res.status(500).send("Error downloading video.");
     }
 });
 
 app.listen(PORT, () => {
-    console.log(`🚀 Sora Downloader running at http://localhost:${PORT}`);
+    console.log(`🚀 Running at http://localhost:${PORT}`);
 });
