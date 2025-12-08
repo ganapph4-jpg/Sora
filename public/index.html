@@ -1,40 +1,107 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sora Video Downloader</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sora Video Downloader</title>
+
+    <style>
+        body {
+            font-family: Arial;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: #f0f2f5;
+        }
+
+        .box {
+            background: #fff;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: none;
+            background: #007bff;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        #result {
+            margin-top: 15px;
+            text-align: left;
+            background: #eee;
+            padding: 10px;
+            border-radius: 8px;
+            min-height: 40px;
+        }
+    </style>
 </head>
 <body>
-<h1>Sora Video Downloader</h1>
-<form id="soraForm">
-<input type="url" id="soraUrl" placeholder="Paste Sora URL" required>
-<button type="submit">Get Video Link</button>
-</form>
-<div id="result"></div>
+
+<div class="box">
+    <h2>Sora Video Downloader</h2>
+
+    <input id="url" type="url" placeholder="Paste Sora Link (https://sora.chatgpt.com/p/...)" required>
+
+    <button onclick="getVideo()">Get Video Link</button>
+
+    <div id="result">Result will appear here...</div>
+</div>
+
 <script>
-const form = document.getElementById('soraForm');
-const urlInput = document.getElementById('soraUrl');
-const resultDiv = document.getElementById('result');
+async function getVideo() {
+    const url = document.getElementById("url").value.trim();
+    const result = document.getElementById("result");
 
-form.addEventListener('submit', async e => {
-    e.preventDefault();
-    const url = urlInput.value;
-    resultDiv.textContent = 'Loading...';
-
-    const res = await fetch('/get-sora-link', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({url})
-    });
-
-    const data = await res.json();
-    if(res.ok && data.download_link){
-        resultDiv.innerHTML = `<a href="${data.download_link}" target="_blank">Download Video</a>`;
-    } else {
-        resultDiv.textContent = data.error || 'Failed';
+    if (!url) {
+        result.innerHTML = "Please enter a link.";
+        return;
     }
-});
+
+    result.innerHTML = "Processing... Please wait.";
+
+    try {
+        const response = await fetch("/get-video", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+            result.innerHTML = "❌ Error: " + data.error;
+        } else {
+            result.innerHTML = `
+                ✅ <b>Success!</b><br><br>
+                <a href="${data.download}" target="_blank">Click to Download Video</a><br><br>
+                <small>${data.download}</small>
+            `;
+        }
+    } catch (e) {
+        result.innerHTML = "❌ Failed to connect to server.";
+    }
+}
 </script>
+
 </body>
 </html>
