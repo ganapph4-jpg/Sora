@@ -1,34 +1,32 @@
 const express = require('express');
-const axios = require('axios');
-const cheerio = require('cheerio');
 const path = require('path');
+const puppeteer = require('puppeteer');
 
 const app = express();
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public'))); // serve frontend
+app.use(express.static(path.join(__dirname, 'public')));
 
-// Endpoint to grab Sora download link
 app.post('/get-sora-link', async (req, res) => {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'No URL provided' });
 
+    let browser;
     try {
-        const response = await axios.get('https://sorai.me/', {
-            params: { url },
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
+        browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: 'networkidle2' });
 
-        const $ = cheerio.load(response.data);
+        await page.waitForSelector('a[href*="videos.openai.com"]', { timeout: 10000 });
+        const downloadLink = await page.$eval('a[href*="videos.openai.com"]', el => el.href);
 
-        // Adjust this selector if sorai.me changes
-        const downloadLink = $('a#download-link').attr('href');
+        await browser.close();
 
         if (!downloadLink) return res.status(404).json({ error: 'Download link not found' });
-
         res.json({ download_link: downloadLink });
     } catch (err) {
+        if (browser) await browser.close();
         console.error(err.message);
-        res.status(500).json({ error: 'Failed to fetch download link' });
+        res.status(500).json({ error: 'Failed to retrieve download link' });
     }
 });
 
