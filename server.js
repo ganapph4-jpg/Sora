@@ -1,34 +1,50 @@
-const express = require('express');
-const path = require('path');
-const puppeteer = require('puppeteer');
+import express from "express";
+import cors from "cors";
+import puppeteer from "puppeteer";
 
 const app = express();
+app.use(cors());
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(".")); // to serve index.html
 
-app.post('/get-sora-link', async (req, res) => {
+app.post("/get-video", async (req, res) => {
     const { url } = req.body;
-    if (!url) return res.status(400).json({ error: 'No URL provided' });
 
-    let browser;
+    if (!url) {
+        return res.status(400).json({ error: "URL is required" });
+    }
+
     try {
-        browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
-        const page = await browser.newPage();
-        await page.goto(url, { waitUntil: 'networkidle2' });
+        const browser = await puppeteer.launch({
+            headless: "new",
+            args: ["--no-sandbox"]
+        });
 
-        await page.waitForSelector('a[href*="videos.openai.com"]', { timeout: 10000 });
-        const downloadLink = await page.$eval('a[href*="videos.openai.com"]', el => el.href);
+        const page = await browser.newPage();
+        await page.goto(url, { waitUntil: "networkidle2" });
+
+        // --- wait for button that contains download link ---
+        await page.waitForSelector("a[href*='videos.openai.com']", { timeout: 15000 });
+
+        // --- extract real mp4 download URL ---
+        const downloadLink = await page.evaluate(() => {
+            const link = document.querySelector("a[href*='videos.openai.com']");
+            return link ? link.href : null;
+        });
 
         await browser.close();
 
-        if (!downloadLink) return res.status(404).json({ error: 'Download link not found' });
-        res.json({ download_link: downloadLink });
+        if (!downloadLink) {
+            return res.status(404).json({ error: "Download link not found" });
+        }
+
+        res.json({ download: downloadLink });
+
     } catch (err) {
-        if (browser) await browser.close();
-        console.error(err.message);
-        res.status(500).json({ error: 'Failed to retrieve download link' });
+        console.error("Error:", err);
+        res.status(500).json({ error: "Failed to extract link" });
     }
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => console.log("Server running on port " + PORT));
